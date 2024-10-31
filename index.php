@@ -13,12 +13,21 @@ if ($conn->connect_error) {
     die("Koneksi gagal: " . $conn->connect_error);
 }
 
-// Update status menjadi "Close" jika waktu keberangkatan tinggal 2 menit
-$updateStatusSql = "UPDATE pids SET Status = 'Close' WHERE Departure BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTE";
-$conn->query($updateStatusSql);
+// Update status menjadi "Close" jika waktu keberangkatan tinggal 5 menit
+// Update status menjadi "Close" jika waktu keberangkatan tinggal 5 menit
+$updateCloseSql = "UPDATE pids SET Status = 'Close' WHERE Departure BETWEEN NOW() AND NOW() + INTERVAL 5 MINUTE";
+if (!$conn->query($updateCloseSql)) {
+    echo "Error updating Close: " . $conn->error;
+}
+
+// Update status menjadi "Open Gate" jika waktu keberangkatan tinggal 30 menit
+$updateOpenGateSql = "UPDATE pids SET Status = 'Open Gate' WHERE Departure BETWEEN NOW() + INTERVAL 30 MINUTE AND NOW() + INTERVAL 31 MINUTE";
+if (!$conn->query($updateOpenGateSql)) {
+    echo "Error updating Open Gate: " . $conn->error;
+}
 
 // Ambil data keberangkatan, hanya 10 baris pertama
-$sql = "SELECT * FROM pids WHERE Departure > NOW() ORDER BY Departure LIMIT 10";
+$sql = "SELECT * FROM pids WHERE Departure > NOW() ORDER BY Departure LIMIT 12";
 $result = $conn->query($sql);
 
 // Memeriksa jumlah data saat ini
@@ -73,12 +82,7 @@ if ($currentCount > $_SESSION['lastCount']) {
             font-size: 40px;
         }
 
-        ::-webkit-scrollbar {
-            display: none;
-        }
-
         th, td {
-            border: 1px solid #333;
             padding: 10px;
             text-align: center;
         }
@@ -95,13 +99,14 @@ if ($currentCount > $_SESSION['lastCount']) {
         tr:nth-child(odd) {
             background-color: #0723DB;
         }
-        
-    
 
-        table, th, td {
-            border: none;
+        .close-status {
+            color: red; /* Tambahkan warna merah untuk status Close */
         }
 
+        .open-gate-status {
+            color: yellow; /* Tambahkan warna kuning untuk status Open Gate */
+        }
 
         .running-text {
             position: absolute;
@@ -115,7 +120,7 @@ if ($currentCount > $_SESSION['lastCount']) {
             width: 100%; 
             color: yellow;
         }
-        
+
         @keyframes marquee {
             0% { transform: translateX(100%); }
             100% { transform: translateX(-100%); }
@@ -125,13 +130,15 @@ if ($currentCount > $_SESSION['lastCount']) {
             max-width: 100%;
             overflow: hidden;
             white-space: nowrap;
+        }
+
+        .status-running {
             animation: marquee-status 10s linear infinite;
-            
         }
 
         @keyframes marquee-status {
             0% { transform: translateX(100%); }
-            100% { transform: translateX(-40%); }
+            100% { transform: translateX(-100%); }
         }
 
         td.status-column {
@@ -184,7 +191,18 @@ if ($currentCount > $_SESSION['lastCount']) {
                         <td><?php echo $row['To']; ?></td>
                         <td><?php echo date('H:i:s', strtotime($row['Departure'])); ?></td>
                         <td><?php echo $row['Platform']; ?></td>
-                        <td class="status-column"><div class="status-text"><?php echo $row['Status']; ?></div></td>
+                        <td class="status-column">
+                            <?php
+                                $status = $row['Status'];
+                                $isClose = ($status == 'Close');
+                                $isOpenGate = ($status == 'Open Gate');
+                                $statusClass = $isClose ? 'close-status' : ($isOpenGate ? 'open-gate-status' : '');
+                                $isLong = strlen($status) > 10; // Batas panjang untuk menjalankan teks
+                            ?>
+                            <div class="status-text <?php echo $statusClass; ?> <?php echo $isLong ? 'status-running' : ''; ?>">
+                                <?php echo $status; ?>
+                            </div>
+                        </td>
                     </tr>
                 <?php endwhile; ?>
             <?php else: ?>
@@ -203,8 +221,6 @@ if ($currentCount > $_SESSION['lastCount']) {
     <?php $conn->close(); ?>
     
     <script>
-        
-
         const texts = {
             id: {
                 trainNo: "No. Kereta",
@@ -253,11 +269,10 @@ if ($currentCount > $_SESSION['lastCount']) {
         setInterval(updateTime, 1000);
         updateTime();
 
-
         // Refresh halaman setiap 60 detik
         setTimeout(() => {
             location.reload();
-        }, 60000); // 60 detik (1 menit)
+        }, 50000);
     </script>
 </body>
 </html>
